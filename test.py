@@ -77,7 +77,7 @@ def test(model, dataloader, device, txt_path):
         
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('--save-dir', type=str, default='exp/OneCyclicLR_exp0', help='hyperparameters path')
+    parser.add_argument('--save-dir', type=str, default='exp/OneCyclicLR', help='hyperparameters path')
     parser.add_argument('--SR-rate', type=int, default=3, help='the scale rate for SR')
     parser.add_argument('--model', type=str, default='', help='the path to the saved model')
     parser.add_argument('--device', type=str, default='cpu', help='gpu id or "cpu"')

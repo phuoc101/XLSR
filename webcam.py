@@ -3,6 +3,7 @@ import argparse
 import torch
 import time
 import cv2
+import numpy as np
 import torchvision.transforms as transforms
 
 from model import XLSR
@@ -10,6 +11,20 @@ from dataset import create_dataloader
 from metric import cal_psnr
 from visualization import save_res
 
+def infer(transform, input_img):
+    LR_img = transform(input_img)
+    LR_img = LR_img[None]
+    LR_img = LR_img.to(device).float()
+    if device != 'cpu':
+        torch.cuda.synchronize()
+    t0 = time.perf_counter()
+    HR_pred = model(LR_img)
+    pred_img = HR_pred[0].cpu().numpy().transpose(1,2,0)
+    if device != 'cpu':
+        torch.cuda.synchronize()
+    t1 = time.perf_counter()
+    inference_time = t1 - t0
+    return pred_img
 
 def test(model, device):
     with torch.no_grad():
@@ -23,74 +38,20 @@ def test(model, device):
             model(random_input)
         print(prof.key_averages().table(sort_by="self_cpu_time_total"))
         transform = transforms.ToTensor()
-        # print("Start testing the model speed on 640*360 input ...")
-        # test_t = 0.
-        # for idx in range(100):
-        #     if device != 'cpu':
-        #         torch.cuda.synchronize()
-        #     t0 = time.perf_counter()
-        #     model(random_input)
-        #     if device != 'cpu':
-        #         torch.cuda.synchronize()
-        #     t1 = time.perf_counter()
-        #     print(f"Inference #{idx}, inference time: {1000*(t1-t0):.2f}ms")
-        #     test_t += t1 - t0
-        # print(f"Average inference time on 640*360 input: {1000*test_t/100:.2f}ms")
-        # with open(txt_path, 'a') as f:
-        #     f.write(f"Average inference time on 640*360 input: {1000*test_t/100:.2f}ms" + '\n')
-        #
         print("Start the inference ...")
         cam = cv2.VideoCapture(0)
         while True:
             ret, frame = cam.read()
-            # frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-            # frame = cv2.resize(frame, (320, 240))
             if ret:
-                LR_img = transform(frame)
-                LR_img = LR_img[None]
-                LR_img = LR_img.to(device).float()
-                if device != 'cpu':
-                    torch.cuda.synchronize()
-                t0 = time.perf_counter()
-                HR_pred = model(LR_img)
-                pred_img = HR_pred[0].cpu().numpy().transpose(1,2,0)
-                if device != 'cpu':
-                    torch.cuda.synchronize()
-                t1 = time.perf_counter()
-                inference_time = t1 - t0
-                scaled = cv2.resize(pred_img, (640, 480))
+                pred_img = infer(transform, frame)
+                scaled = cv2.resize(pred_img, (1920, 1440))
                 cv2.imshow("orig", frame)
                 cv2.imshow("scale", scaled)
                 cv2.imshow("sisr", pred_img)
                 if cv2.waitKey(1) == ord('q'):
                     break
             else:
-                pass
-
-        # for LR_img, HR_img, img_name in dataloader:
-        #     LR_img, HR_img = LR_img.to(device).float(), HR_img.to(device).float()
-        #     if device != 'cpu':
-        #         torch.cuda.synchronize()
-        #     t0 = time.perf_counter()
-        #     HR_pred = model(LR_img)
-        #     if device != 'cpu':
-        #         torch.cuda.synchronize()
-        #     t1 = time.perf_counter()
-        #     psnr = cal_psnr(HR_pred, HR_img).item()
-        #     inference_time = t1 - t0
-        #     print(f"PSRN on {img_name}: {psnr:.3f}, inference time: {1000*inference_time:.2f}ms")
-        #     with open(txt_path, 'a') as f:
-        #         f.write(f"PSRN on {img_name}: {psnr:.3f}, inference time: {1000*inference_time:.2f}ms" + '\n')
-        #     avg_psnr += psnr
-        #     avg_time += inference_time
-        #     pred_list.append(HR_pred)
-        #     name_list += img_name
-    # avg_psnr /= len(test_dataloader)
-    # avg_time /= len(test_dataloader)
-    # print(f"Average PSRN: {avg_psnr:.3f}, average inference time: {1000*avg_time:.2f}ms")
-    # with open(txt_path, 'a') as f:
-    #     f.write(f"Average PSRN: {avg_psnr:.3f}, average inference time: {1000*avg_time:.2f}ms")
-    # return pred_list, name_list
+                print("Cannot open img source")
 
 
 if __name__ == '__main__':
